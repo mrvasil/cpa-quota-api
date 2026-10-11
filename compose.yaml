@@ -1,0 +1,27 @@
+services:
+  cpa-quota-api:
+    image: ghcr.io/umbra2728/cpa-quota-api:latest
+    container_name: cpa-quota-api
+    restart: unless-stopped
+    env_file: ./cpa-quota-api.env
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:8082:8080"
+    networks:
+      - cpa
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,nodev
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/quota-api", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+networks:
+  cpa:
+    external: true
