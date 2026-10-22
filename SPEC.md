@@ -95,6 +95,13 @@ Active checks must preserve the account's existing connection policy. They must 
 
 Support all applicable reported quota windows, including named or model-specific limits where available. Determine window labels from their actual duration: primary is not necessarily five hours, and secondary is not necessarily a week.
 
+Fork extension: optionally expose banked reset inventory from the fixed
+read-only inventory GET, independently of usage polling ownership. Retain only
+the reported available count and grant/expiry dates for available entries.
+Never retain redemption IDs or offer an operation that consumes a reset.
+Cache observations with a persisted, interest-gated budget of at least 15m per
+account and failure backoff. Missing inventory is unknown, not zero.
+
 Preserve known distinctions between quota groups. Show credits only with a known meaning and unit; do not convert them into dollars, tokens, or extra percentage capacity without authoritative information.
 
 ### Claude

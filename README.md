@@ -1,5 +1,9 @@
 # cpa-quota-api
 
+This fork adds optional **read-only Codex banked reset inventory**: available count,
+grant dates and expiry dates. It cannot redeem, buy or apply a reset. Enable it
+with `CODEX_BANKED_RESETS=true`; it also works with `REFRESH_OWNER=keeper`.
+
 Read-only companion service for [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) (CPA) that exposes the Codex and Claude subscription quota of a shared account pool at `GET /v1/quota`. Clients authenticate with the same CPA client key they already use for model requests.
 
 It runs as its own container next to CPA, so a quota failure can never break model traffic. It is not a CPA plugin and does not modify CPA.
@@ -52,6 +56,9 @@ Environment variables (secrets also accept a `_FILE` variant):
 | `KEEPER_URL`, `KEEPER_PASSWORD` | — | required when `REFRESH_OWNER=quota-api` |
 | `CODEX_REFRESH_INTERVAL`, `CLAUDE_REFRESH_INTERVAL` | `15m` | minimum per-account active check interval (at least 1m) |
 | `CODEX_STALE_AFTER`, `CLAUDE_STALE_AFTER` | `10m` | when an observation counts as stale |
+| `CODEX_BANKED_RESETS` | `false` | opt in to the fixed Codex reset-inventory GET; independent of usage refresh ownership |
+| `BANKED_RESETS_INTERVAL` | `15m` | minimum per-account inventory interval, at least 15m |
+| `BANKED_RESETS_STALE_AFTER` | `15m` | inventory freshness threshold, at least 1m |
 | `MAX_BACKOFF` | `24h` | cap for ordinary failure backoff |
 | `SNAPSHOT_EVERY`, `INTEREST_FOR` | `15s`, `2m` | passive CPA snapshot cadence while clients are interested |
 | `STATE_DIR`, `LISTEN_ADDR` | `/data`, `:8080` | persistent state and listen address |
@@ -61,6 +68,19 @@ Never enable active refresh in both this service and Usage Keeper.
 ## Operational guarantees
 
 Authorization is checked against CPA `/v1/models` for every request; no stale authorization is accepted after a failed revalidation. Passive reads come from CPA's existing observations and do not contact providers. Refreshes are serialized globally, limited per account, interest-gated, persisted with backoff, and stopped when the ownership guard cannot prove Keeper polling is disabled.
+
+The opt-in banked inventory worker is separate from usage polling: it reads only
+`GET https://chatgpt.com/backend-api/wham/rate-limit-reset-credits` through CPA.
+Client requests return the cached inventory without waiting for the provider.
+It stops after the same idle timeout, skips disabled/invalid accounts, and
+persists its per-account budget and error backoff across restarts. Enabling it
+does not enable usage polling or change Keeper settings. It makes one inventory
+request per account per interval while clients are interested, including when
+the last count was zero. No redemption ID or raw inventory response is stored.
+
+The upstream image in `compose.yaml` does not include this fork's changes. Build
+this source with `docker build -t cpa-quota-api:banked .` and select that image,
+or build a native binary with `go build -o quota-api .` on the target platform.
 
 ## Development
 

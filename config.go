@@ -6,32 +6,40 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 )
 
 type Config struct {
-	Listen         string
-	CPAURL         string
-	ManagementKey  string
-	Salt           []byte
-	StateDir       string
-	KeeperURL      string
-	KeeperPassword string
-	RefreshOwner   string
-	SnapshotEvery  time.Duration
-	InterestFor    time.Duration
-	CodexInterval  time.Duration
-	ClaudeInterval time.Duration
-	CodexStale     time.Duration
-	ClaudeStale    time.Duration
-	MaxBackoff     time.Duration
+	Listen            string
+	CPAURL            string
+	ManagementKey     string
+	Salt              []byte
+	StateDir          string
+	KeeperURL         string
+	KeeperPassword    string
+	RefreshOwner      string
+	SnapshotEvery     time.Duration
+	InterestFor       time.Duration
+	CodexInterval     time.Duration
+	ClaudeInterval    time.Duration
+	CodexStale        time.Duration
+	ClaudeStale       time.Duration
+	MaxBackoff        time.Duration
+	CodexBankedResets bool
+	BankedInterval    time.Duration
+	BankedStale       time.Duration
 }
 
 func loadConfig() (Config, error) {
 	c := Config{Listen: env("LISTEN_ADDR", ":8080"), CPAURL: strings.TrimRight(env("CPA_URL", "http://cli-proxy-api:8317"), "/"), StateDir: env("STATE_DIR", "/data"), KeeperURL: strings.TrimRight(os.Getenv("KEEPER_URL"), "/"), RefreshOwner: env("REFRESH_OWNER", "keeper")}
 	var err error
+	c.CodexBankedResets, err = strconv.ParseBool(env("CODEX_BANKED_RESETS", "false"))
+	if err != nil {
+		return c, errors.New("invalid banked resets policy")
+	}
 	c.ManagementKey, err = secret("CPA_MANAGEMENT_KEY")
 	if err != nil || c.ManagementKey == "" {
 		return c, errors.New("management credential required")
@@ -63,13 +71,15 @@ func loadConfig() (Config, error) {
 		{"CODEX_STALE_AFTER", &c.CodexStale, 10 * time.Minute, time.Minute},
 		{"CLAUDE_STALE_AFTER", &c.ClaudeStale, 10 * time.Minute, time.Minute},
 		{"MAX_BACKOFF", &c.MaxBackoff, 24 * time.Hour, time.Hour},
+		{"BANKED_RESETS_INTERVAL", &c.BankedInterval, 15 * time.Minute, 15 * time.Minute},
+		{"BANKED_RESETS_STALE_AFTER", &c.BankedStale, 15 * time.Minute, time.Minute},
 	} {
 		*item.dest, err = time.ParseDuration(env(item.name, item.fallback.String()))
 		if err != nil || *item.dest < item.minimum || *item.dest > 30*24*time.Hour {
 			return c, errors.New("invalid timing policy")
 		}
 	}
-	if c.MaxBackoff < c.CodexInterval || c.MaxBackoff < c.ClaudeInterval {
+	if c.MaxBackoff < c.CodexInterval || c.MaxBackoff < c.ClaudeInterval || (c.CodexBankedResets && c.MaxBackoff < c.BankedInterval) {
 		return c, errors.New("backoff below interval")
 	}
 	if c.RefreshOwner != "keeper" && c.RefreshOwner != "quota-api" {

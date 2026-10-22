@@ -23,6 +23,15 @@ To move ownership to Keeper: set `REFRESH_OWNER=keeper`, recreate this container
 
 Clients cannot pass provider URLs, account selectors, force-refresh flags, proxy overrides or credit/reset operations. Active requests are fixed GET quota reads sent through CPA's management `api-call`, so CPA applies its existing account and proxy policy and substitutes the token. This service never loads OAuth credential files.
 
+This fork separately offers opt-in Codex banked reset inventory via
+`CODEX_BANKED_RESETS=true`. It calls only the fixed read-only
+`/backend-api/wham/rate-limit-reset-credits` GET through CPA, at most once per
+account per configured interval (minimum 15m) while clients are interested.
+Its persisted budget and backoff are independent of usage refresh ownership;
+`REFRESH_OWNER=keeper` still disables usage checks by this service. No Keeper
+configuration or login is needed for inventory. Do not enable another recurring
+reset-inventory fetcher implicitly. Preserve state and salt during upgrades.
+
 ## Freshness policy
 
 | Setting | Default |

@@ -38,14 +38,15 @@ type refreshState struct {
 	NextAttemptAt *time.Time `json:"next_attempt_at,omitempty"`
 }
 type account struct {
-	Provider        string       `json:"provider"`
-	ID              string       `json:"account_id"`
-	Plan            string       `json:"plan,omitempty"`
-	Windows         []window     `json:"windows"`
-	Routing         routing      `json:"routing"`
-	Refresh         refreshState `json:"refresh"`
-	LimitingWindow  string       `json:"limiting_window,omitempty"`
-	AdditionalUsage string       `json:"additional_usage,omitempty"`
+	Provider        string        `json:"provider"`
+	ID              string        `json:"account_id"`
+	Plan            string        `json:"plan,omitempty"`
+	Windows         []window      `json:"windows"`
+	Routing         routing       `json:"routing"`
+	Refresh         refreshState  `json:"refresh"`
+	LimitingWindow  string        `json:"limiting_window,omitempty"`
+	AdditionalUsage string        `json:"additional_usage,omitempty"`
+	BankedResets    *bankedResets `json:"banked_resets,omitempty"`
 	observation
 }
 type providerView struct {
@@ -71,10 +72,12 @@ type response struct {
 	Warnings      []string       `json:"warnings"`
 }
 type storedAccount struct {
-	Account        account   `json:"account"`
-	Failures       int       `json:"failures"`
-	NextAttempt    time.Time `json:"next_attempt"`
-	RetryNotBefore time.Time `json:"retry_not_before"`
+	Account           account   `json:"account"`
+	Failures          int       `json:"failures"`
+	NextAttempt       time.Time `json:"next_attempt"`
+	RetryNotBefore    time.Time `json:"retry_not_before"`
+	BankedNextAttempt time.Time `json:"banked_next_attempt,omitempty"`
+	BankedFailures    int       `json:"banked_failures,omitempty"`
 }
 type cpaFile struct {
 	Invalid     bool                 `json:"-"`

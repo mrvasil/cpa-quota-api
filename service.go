@@ -18,12 +18,14 @@ type backend interface {
 	snapshot(context.Context) ([]cpaFile, error)
 	ownership(context.Context) bool
 	check(context.Context, cpaFile) (account, *checkError)
+	bankedResets(context.Context, cpaFile) (*bankedResets, *checkError)
 }
 type service struct {
 	cfg               Config
 	upstream          backend
 	mu                sync.Mutex
 	refreshMu         sync.Mutex
+	bankedMu          sync.Mutex
 	guardNext         time.Time
 	accounts          map[string]storedAccount
 	files             map[string]cpaFile
@@ -58,6 +60,10 @@ func newService(cfg Config) (*service, error) {
 	for k, entry := range s.accounts {
 		entry.Account.Routing = routing{State: "unknown"}
 		entry.Account.Windows = filterWindows(entry.Account.Provider, entry.Account.Windows)
+		if entry.Account.BankedResets != nil && entry.Account.BankedResets.Refresh.State == "running" {
+			entry.Account.BankedResets.Refresh.State = "backoff"
+			entry.Account.BankedResets.Refresh.Error = "refresh_interrupted"
+		}
 		if entry.Account.Refresh.State == "running" {
 			entry.Account.Refresh.State = "backoff"
 			entry.Account.Refresh.Error = "refresh_interrupted"
@@ -162,6 +168,7 @@ func (s *service) run(ctx context.Context) {
 			s.readSnapshot(ctx)
 		}
 		s.refreshOne(ctx)
+		s.refreshBankedOne(ctx)
 	}
 }
 func (s *service) readSnapshot(ctx context.Context) {
@@ -203,6 +210,7 @@ func (s *service) readSnapshot(ctx context.Context) {
 			a.Plan = prev.Account.Plan
 		}
 		a.Refresh = prev.Account.Refresh
+		a.BankedResets = prev.Account.BankedResets
 		if a.Refresh.State == "" {
 			a.Refresh.State = "idle"
 		}
@@ -377,6 +385,11 @@ func (s *service) view(now time.Time) response {
 				continue
 			}
 			a := entry.Account
+			if !s.cfg.CodexBankedResets {
+				a.BankedResets = nil
+			} else if provider == "codex" {
+				a.BankedResets = decorateBanked(a.BankedResets, now, s.cfg.BankedStale)
+			}
 			a.Windows = filterWindows(provider, a.Windows)
 			a = decorate(a, now, s.cfg.stale(provider))
 			if out.SnapshotState != "available" {

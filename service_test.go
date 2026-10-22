@@ -11,14 +11,22 @@ import (
 )
 
 type fakeBackend struct {
-	valid       atomic.Bool
-	authFail    atomic.Bool
-	calls       atomic.Int32
-	files       []cpaFile
-	snapshotErr error
-	owns        bool
-	result      account
-	failure     *checkError
+	valid         atomic.Bool
+	authFail      atomic.Bool
+	calls         atomic.Int32
+	files         []cpaFile
+	snapshotErr   error
+	owns          bool
+	result        account
+	failure       *checkError
+	bankedCalls   atomic.Int32
+	bankedResult  *bankedResets
+	bankedFailure *checkError
+}
+
+func (f *fakeBackend) bankedResets(context.Context, cpaFile) (*bankedResets, *checkError) {
+	f.bankedCalls.Add(1)
+	return f.bankedResult, f.bankedFailure
 }
 
 func (f *fakeBackend) authorize(context.Context, string) (bool, error) {

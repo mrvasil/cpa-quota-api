@@ -105,7 +105,52 @@ Model scopes and nonstandard quota group names are also opaque HMAC identifiers.
 
 Claude passive utilization headers are fractions, multiplied by 100. Claude OAuth usage payload utilization is already a percentage, including values below 1; it is not heuristically multiplied. Codex used percentages retain their source unit. NaN, infinity, out-of-range values, and malformed numbers are not coerced to zero.
 
-Optional `limiting_window` and `additional_usage` reflect explicit source facts only. Credits are not exposed because generic credit balances do not provide an authoritative display unit in the passive contract. No credit spending/reset endpoint is called.
+Optional `limiting_window` and `additional_usage` reflect explicit source facts only. Generic spending credits are not exposed because they do not provide an authoritative display unit in the passive contract. No credit spending or reset redemption endpoint is called.
+
+### Banked resets (fork extension, Codex only)
+
+When `CODEX_BANKED_RESETS=true`, each Codex account also includes `banked_resets`:
+
+```json
+{
+  "available_count": 1,
+  "credits": [
+    {
+      "granted_at": "2026-10-01T00:00:00Z",
+      "expires_at": "2026-11-01T00:00:00Z"
+    }
+  ],
+  "observed_at": "2026-10-22T12:00:00Z",
+  "age_seconds": 60,
+  "freshness": "fresh",
+  "refresh": {
+    "state": "succeeded",
+    "attempted_at": "2026-10-22T12:00:00Z",
+    "next_attempt_at": "2026-10-22T12:15:00Z"
+  }
+}
+```
+
+Dates are RFC3339 timestamps. `granted_at` is when a manual reset credit was
+issued; `expires_at` is its expiry, not the subscription window's next reset.
+Only credits whose provider status is `available` contribute date entries.
+Missing dates remain `null`. `available_count` is the provider's reported count;
+it is not inferred from the number of date entries, which may be incomplete.
+It is `null` until the first valid observation; an explicit `0` means the
+provider reported no available resets. When the extension is disabled, the
+whole field is omitted. Claude inventory is not supported by this extension.
+
+The inventory has its own `observed_at`, freshness and refresh budget. An
+expired credit makes the observation stale without inventing a new balance.
+An unsuccessful refresh retains the last successful data, marks it stale and
+reports a sanitized error and backoff under `refresh`. Before the first fetch,
+the count is null and freshness unknown. A first request after idle may return
+old data while the background worker refreshes it. Ordinary CPA snapshots and
+HTTP reads do not advance the inventory observation timestamp.
+
+Redemption IDs, account/profile identities, titles, descriptions and raw
+responses are neither exposed nor persisted. There is no reset, redemption,
+purchase, force-refresh or caller-selected provider endpoint.
 
 ### Routing and errors
 
